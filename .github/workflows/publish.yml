@@ -2,9 +2,8 @@ name: Build plugin
 
 on:
   push:
-    # Sequence of patterns matched against refs/tags
     tags:
-      - "v*" # Push events to matching any tag format, i.e. 1.0, 20.15.10
+      - "v*"
 
 env:
   PLUGIN_NAME: logseq-sort-blocks
@@ -39,20 +38,10 @@ jobs:
           cp README.md package.json ${{ env.PLUGIN_NAME }}
           mv dist ${{ env.PLUGIN_NAME }}
           zip -r ${{ env.PLUGIN_NAME }}.zip ${{ env.PLUGIN_NAME }}
-          ls
-          echo "::set-output name=tag_name::$(git tag --sort version:refname | tail -n 1)"
 
-      - name: Create Release
-        uses: ncipollo/release-action@v1
-
-      - name: Upload zip file
-        id: upload_zip
+      - name: Create release
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ env.PLUGIN_NAME }}.zip
-
-      - name: Upload package.json
-        id: upload_metadata
-        uses: softprops/action-gh-release@v1
-        with:
-          files: package.json
+          files: |
+            ${{ env.PLUGIN_NAME }}.zip
+            package.json
