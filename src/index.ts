@@ -4,16 +4,17 @@ import { BlockEntity } from "@logseq/libs/dist/LSPlugin";
 async function main () {
     type Comparer = (a: BlockEntity, b: BlockEntity) => number;
 
-    async function sortChildren(parentBlock: BlockEntity, comparer: Comparer) {
-        if (!parentBlock.children?.length) {
+    async function sortBlocks(source: BlockEntity[], comparer: Comparer) {
+        if (!source.length) {
             return
         }
 
-        let fromArray = Array.from(parentBlock.children);
+        console.debug("sortBlocks", source, comparer);
+
+        let fromArray = Array.from(source);
 
         const toArray = fromArray
-            .filter(x => (x as BlockEntity).content !== undefined)
-            .map(x => <BlockEntity> x)
+            .filter(x => x.content !== undefined)
             .sort(comparer);
 
         console.assert(fromArray.length === toArray.length);
@@ -22,11 +23,13 @@ async function main () {
             return
         }
 
+        console.log("sortedBlocks", toArray);
+
         for (let index = 0; index < toArray.length; index++) {
             const block = toArray[index];
             if (fromArray[0] !== block) {
                 if (index === 0) {
-                    await logseq.Editor.moveBlock(block.uuid, parentBlock.uuid, { children: true })
+                    await logseq.Editor.moveBlock(block.uuid, fromArray[0].uuid, { before: true })
                 }
                 else {
                     await logseq.Editor.moveBlock(block.uuid, toArray[index-1].uuid);
@@ -39,23 +42,34 @@ async function main () {
         }
     }
 
-    logseq.beforeunload(
-        logseq.Editor.registerBlockContextMenuItem('Sort blocks: A-Z', async (e) => {
-            const block = await logseq.Editor.getBlock(e.uuid, { includeChildren: true });
-            if (block) {
-                await sortChildren(block, (a, b) => a.content.localeCompare(b.content, "en", { numeric: true }));
-            }
-        }) as any
-    );
+    const comparers = new Map<string, Comparer>([
+        ["A-Z", (a: BlockEntity, b: BlockEntity) => a.content.localeCompare(b.content, "en", { numeric: true })],
+        ["Z-A", (a: BlockEntity, b: BlockEntity) => -a.content.localeCompare(b.content, "en", { numeric: true })],
+    ]);
 
-    logseq.beforeunload(
-        logseq.Editor.registerBlockContextMenuItem('Sort blocks: Z-A', async (e) => {
-            const block = await logseq.Editor.getBlock(e.uuid, { includeChildren: true });
-            if (block) {
-                await sortChildren(block, (a, b) => -a.content.localeCompare(b.content, "en", { numeric: true }));
-            }
-        }) as any
-    );
+    for (const key of comparers.keys()) {
+        const comparer = comparers.get(key)!;
+
+        logseq.beforeunload(
+            logseq.Editor.registerBlockContextMenuItem(`Sort blocks: ${key}`, async (e) => {
+                const block = await logseq.Editor.getBlock(e.uuid, { includeChildren: true });
+                if (block) {
+                    await sortBlocks(block.children as BlockEntity[], comparer)
+                }
+            }) as any
+        );
+
+        logseq.beforeunload(
+            logseq.App.registerPageMenuItem(`Sort blocks: ${key}`, async ({ page }) => {
+
+                // `logseq.Editor.getPage(page, { includeChildren: true });`
+                // will return a null children
+
+                const blocks = await logseq.Editor.getPageBlocksTree(page);
+                await sortBlocks(blocks, comparer);
+            }) as any
+        );
+    }
 }
 
 if (typeof logseq !== 'undefined') {
