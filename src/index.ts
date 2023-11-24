@@ -1,12 +1,26 @@
 import "@logseq/libs";
 import { BlockEntity } from "@logseq/libs/dist/LSPlugin";
 
+function isPagePropertiesBlock(block: BlockEntity) {
+    // preBlock? is not the public API
+    return block.level === 1 && block['preBlock?'] === true;
+}
+
 async function main () {
     type Comparer = (a: string, b: string) => number;
 
     async function sortBlocks(source: BlockEntity[], comparer: Comparer) {
-        if (source.length === 0 || source.some(x => typeof x.content !== 'string')) {
+        if (source.some(x => typeof x.content !== 'string')) {
             return
+        }
+
+        if (isPagePropertiesBlock(source[0])) {
+            // do not sort page properties
+            source = source.slice(1);
+        }
+
+        if (source.length === 0) {
+            return;
         }
 
         let fromArray = Array.from(source);
